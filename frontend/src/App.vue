@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+function handleLogout() {
+  auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -19,7 +28,12 @@ import { RouterLink, RouterView } from 'vue-router'
             <RouterLink to="/" class="hover:text-emerald-600">Home</RouterLink>
             <RouterLink to="/products" class="hover:text-emerald-600">Products</RouterLink>
             <RouterLink to="/about" class="hover:text-emerald-600">About</RouterLink>
-            <RouterLink to="/profile" class="hover:text-emerald-600">Profile</RouterLink>
+            <RouterLink v-if="auth.token" to="/profile" class="hover:text-emerald-600 flex items-center gap-1">
+              <span>Profile</span>
+              <span v-if="auth.user" class="inline-block rounded bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-medium">{{ auth.user.name }}</span>
+            </RouterLink>
+            <RouterLink v-if="!auth.token" to="/login" class="hover:text-emerald-600">Login</RouterLink>
+            <button v-if="auth.token" @click="handleLogout" class="text-slate-600 hover:text-red-600">Logout</button>
             <RouterLink to="/admin" class="rounded bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-700">Admin</RouterLink>
           </nav>
         </div>

@@ -2,11 +2,14 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchProductById, type Product } from '@/services/products'
+import { addToCart as apiAddToCart, addFavorite } from '@/services/userResources'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
 
 const id = Number(route.params.id)
+const auth = useAuthStore()
 const product = ref<Product | undefined>(undefined)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -46,9 +49,32 @@ const discountPct = computed(() => product.value && product.value.promotion_pric
   : 0
 )
 
-function addToCart() {
-  // Placeholder: integrate with backend cart API later
-  alert(`Added to cart: ${product.value?.name} x${qty.value}${selectedSize.value ? ' - ' + selectedSize.value : ''}${selectedColor.value ? ' / ' + selectedColor.value : ''}`)
+async function addToCart() {
+  if (!auth.token) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!product.value) return
+  try {
+    await apiAddToCart({ product_id: product.value.id, quantity: qty.value, size: selectedSize.value, color: selectedColor.value })
+    alert('Added to cart')
+  } catch (e: any) {
+    alert(e?.message || 'Failed to add to cart')
+  }
+}
+
+async function fav() {
+  if (!auth.token) {
+    router.push({ name: 'login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!product.value) return
+  try {
+    await addFavorite(product.value.id)
+    alert('Added to favorites')
+  } catch (e: any) {
+    alert(e?.message || 'Failed to favorite')
+  }
 }
 </script>
 
@@ -123,6 +149,7 @@ function addToCart() {
         <button @click="addToCart" class="w-full sm:w-auto sm:min-w-[220px] rounded-lg bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800">Add to Cart</button>
         <button
           type="button"
+          @click="fav"
           class="inline-flex h-12 w-12 items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-900 hover:bg-zinc-50"
           aria-label="Add to favorites"
           title="Add to favorites"
