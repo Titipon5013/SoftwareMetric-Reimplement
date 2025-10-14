@@ -5,14 +5,14 @@ const app = new Hono()
 
 // GET /products?limit=20&offset=0
 app.get('/', async (c) => {
-  const limit = Number(c.req.query('limit') ?? 20)
-  const offset = Number(c.req.query('offset') ?? 0)
-  const { data, error } = await admin
+  const limit = Math.max(1, Math.min(100, Number(c.req.query('limit') ?? 20)))
+  const offset = Math.max(0, Number(c.req.query('offset') ?? 0))
+  const { data, error, count } = await admin
     .from('products')
-    .select('*')
+    .select('*', { count: 'exact' })
     .range(offset, offset + limit - 1)
   if (error) return c.json({ error: error.message }, 500)
-  return c.json({ items: data })
+  return c.json({ items: data ?? [], total: count ?? 0, limit, offset })
 })
 
 // GET /products/:id

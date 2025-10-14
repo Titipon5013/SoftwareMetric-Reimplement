@@ -125,7 +125,7 @@ onMounted(() => {
 
       <div class="collection-grid">
         <div class="collection-item" data-aos="fade-up" data-aos-delay="100">
-          <RouterLink to="/product/6">
+          <RouterLink to="/products/6">
             <img src="/assets/images/product1.jpg" alt="Chrome Hearts T-Shirt" />
           </RouterLink>
           <h3>Chrome Hearts Men's Round Neck Cotton Casual</h3>
@@ -133,7 +133,7 @@ onMounted(() => {
         </div>
 
         <div class="collection-item" data-aos="fade-up" data-aos-delay="200">
-          <RouterLink to="/product/7">
+          <RouterLink to="/products/7">
             <img src="/assets/images/product2.jpg" alt="Drew House Hoodie" />
           </RouterLink>
           <h3>Jual Drew House Mascot Blue Hoodie</h3>
@@ -141,7 +141,7 @@ onMounted(() => {
         </div>
 
         <div class="collection-item" data-aos="fade-up" data-aos-delay="300">
-          <RouterLink to="/product/11">
+          <RouterLink to="/products/8">
             <img src="/assets/images/product3.jpg" alt="Young Thug Hoodie" />
           </RouterLink>
           <h3>Young Thug Sp5der Vintage Pullover Hoodie</h3>
@@ -165,16 +165,16 @@ onMounted(() => {
       <!-- Products Display -->
       <div class="approach-grid">
         <div class="approach-item" data-aos="zoom-in">
-          <RouterLink to="/products?category=Vlone#search-bar"><img src="/assets/images/approach1.png" alt="Vlone" /></RouterLink>
+          <RouterLink to="/products?q=Vlone#search-bar"><img src="/assets/images/approach1.png" alt="Vlone" /></RouterLink>
         </div>
         <div class="approach-item" data-aos="zoom-in" data-aos-delay="200">
-          <RouterLink to="/products?category=Stussy#search-bar"><img src="/assets/images/approach2.jpg" alt="Stussy" /></RouterLink>
+          <RouterLink to="/products?q=Stussy#search-bar"><img src="/assets/images/approach2.jpg" alt="Stussy" /></RouterLink>
         </div>
         <div class="approach-item" data-aos="zoom-in" data-aos-delay="400">
-          <RouterLink to="/products?category=Chrome Hearts#search-bar"><img src="/assets/images/approach3.jpg" alt="Chrome Hearts" /></RouterLink>
+          <RouterLink to="/products?q=Chrome%20Hearts#search-bar"><img src="/assets/images/approach3.jpg" alt="Chrome Hearts" /></RouterLink>
         </div>
         <div class="approach-item" data-aos="zoom-in" data-aos-delay="600">
-          <RouterLink to="/products?category=Amiri#search-bar"><img src="/assets/images/approach4.jpg" alt="Amiri" /></RouterLink>
+          <RouterLink to="/products?q=Amiri#search-bar"><img src="/assets/images/approach4.jpg" alt="Amiri" /></RouterLink>
         </div>
       </div>
     </section>
