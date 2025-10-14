@@ -43,26 +43,26 @@ onMounted(() => {
 
     <!-- Quick links -->
     <div class="grid justify-items-center text-center gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      <RouterLink to="/products?category=sneakers" class="group rounded-xl border border-slate-200 p-6 hover:shadow-md">
-        <div class="mb-3 flex items-center gap-3">
-          <div class="rounded bg-emerald-100 p-2 text-emerald-700">👟</div>
-          <h3 class="font-semibold">Sneakers</h3>
-        </div>
-        <p class="text-sm text-slate-600">Classic silhouettes and latest collabs.</p>
-      </RouterLink>
       <RouterLink to="/products?category=hoodies" class="group rounded-xl border border-slate-200 p-6 hover:shadow-md">
         <div class="mb-3 flex items-center gap-3">
           <div class="rounded bg-emerald-100 p-2 text-emerald-700">🧥</div>
           <h3 class="font-semibold">Hoodies</h3>
         </div>
-        <p class="text-sm text-slate-600">Layers for everyday comfort.</p>
+        <p class="text-sm text-slate-600">Cozy layers for any season.</p>
       </RouterLink>
-      <RouterLink to="/products?category=accessories" class="group rounded-xl border border-slate-200 p-6 hover:shadow-md">
+      <RouterLink to="/products?category=t-shirt" class="group rounded-xl border border-slate-200 p-6 hover:shadow-md">
         <div class="mb-3 flex items-center gap-3">
-          <div class="rounded bg-emerald-100 p-2 text-emerald-700">🧢</div>
-          <h3 class="font-semibold">Accessories</h3>
+          <div class="rounded bg-emerald-100 p-2 text-emerald-700">👕</div>
+          <h3 class="font-semibold">T‑Shirt</h3>
         </div>
-        <p class="text-sm text-slate-600">Caps, socks, and daily essentials.</p>
+        <p class="text-sm text-slate-600">Daily essentials & graphic drops.</p>
+      </RouterLink>
+      <RouterLink to="/products?category=sweater" class="group rounded-xl border border-slate-200 p-6 hover:shadow-md">
+        <div class="mb-3 flex items-center gap-3">
+          <div class="rounded bg-emerald-100 p-2 text-emerald-700">�</div>
+          <h3 class="font-semibold">Sweater</h3>
+        </div>
+        <p class="text-sm text-slate-600">Warm knits & textured comfort.</p>
       </RouterLink>
     </div>
 

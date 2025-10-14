@@ -7,6 +7,7 @@ import admin from './routes/admin.js'
 import favorites from './routes/favorites.js'
 import orders from './routes/orders.js'
 import auth from './routes/auth.js'
+import addresses from './routes/addresses.js'
 
 const app = new Hono()
 
@@ -30,6 +31,7 @@ app.route('/admin', admin)
 app.route('/favorites', favorites)
 app.route('/orders', orders)
 app.route('/auth', auth)
+app.route('/addresses', addresses)
 
 const port = Number(Bun.env.PORT || 8787)
 console.log(`[backend-bun] listening on http://localhost:${port}`)

@@ -18,9 +18,15 @@ app.get('/', async (c) => {
 // GET /products/:id
 app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
-  const { data, error } = await admin.from('products').select('*').eq('id', id).single()
-  if (error) return c.json({ error: error.message }, 404)
-  return c.json(data)
+  const { data: product, error } = await admin.from('products').select('*').eq('id', id).single()
+  if (error || !product) return c.json({ error: 'Not found' }, 404)
+  // fetch inventory variants
+  const { data: inventory, error: invErr } = await admin.from('inventory').select('*').eq('product_id', id)
+  if (invErr) {
+    // still return product even if inventory fails
+    return c.json({ ...product, inventory: [] })
+  }
+  return c.json({ ...product, inventory: inventory || [] })
 })
 
 export default app

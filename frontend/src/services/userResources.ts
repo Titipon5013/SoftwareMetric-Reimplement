@@ -7,7 +7,17 @@ async function authFetch(path: string, init: RequestInit = {}) {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as any || {}) }
   if (token) headers['Authorization'] = `Bearer ${token}`
   const res = await fetch(API_BASE + path, { ...init, headers })
-  if (!res.ok) throw new Error(await res.text() || res.statusText)
+  if (!res.ok) {
+    let message: string | undefined
+    const text = await res.text()
+    try {
+      const j = JSON.parse(text)
+      message = j.error || j.message
+    } catch {
+      message = text
+    }
+    throw new Error(message || res.statusText)
+  }
   if (res.status === 204) return null
   return res.json()
 }

@@ -10,6 +10,15 @@ export type RawProduct = {
   // Optional fields if backend later adds them
   brand?: string | null
   category?: string | null
+  inventory?: RawInventory[] | null
+}
+
+export type RawInventory = {
+  id: number
+  product_id: number
+  size?: string | null
+  color?: string | null
+  stock: number
 }
 
 export type Product = {
@@ -23,6 +32,14 @@ export type Product = {
   description?: string
   brand?: string
   category?: string
+  inventory: InventoryVariant[]
+}
+
+export type InventoryVariant = {
+  id: number
+  size?: string
+  color?: string
+  stock: number
 }
 
 function parseMaybeArray(value: string[] | string | null | undefined): string[] {
@@ -37,6 +54,12 @@ function parseMaybeArray(value: string[] | string | null | undefined): string[] 
 }
 
 export function normalizeProduct(p: RawProduct): Product {
+  const inv: InventoryVariant[] = (p.inventory || []).map((r) => ({
+    id: r.id,
+    size: r.size || undefined,
+    color: r.color || undefined,
+    stock: r.stock,
+  }))
   return {
     id: p.id,
     name: p.name,
@@ -48,11 +71,12 @@ export function normalizeProduct(p: RawProduct): Product {
     description: p.description ?? undefined,
     brand: p.brand ?? undefined,
     category: p.category ?? undefined,
+    inventory: inv,
   }
 }
 
 // Default to local backend if env not provided (helps avoid calling the frontend origin by mistake)
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8799'
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787'
 
 export async function fetchProducts(params: { limit?: number; offset?: number } = {}): Promise<{ items: Product[]; total?: number; limit?: number; offset?: number }> {
   const q = new URLSearchParams()

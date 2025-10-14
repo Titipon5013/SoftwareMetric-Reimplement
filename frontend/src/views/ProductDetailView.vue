@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { fetchProductById, type Product } from '@/services/products'
+import { fetchProductById, type Product, type InventoryVariant } from '@/services/products'
 import { addToCart as apiAddToCart, addFavorite } from '@/services/userResources'
+import { showMessage } from '@/composables/useToaster'
+import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -10,6 +12,7 @@ const router = useRouter()
 
 const id = Number(route.params.id)
 const auth = useAuthStore()
+const cart = useCartStore()
 const product = ref<Product | undefined>(undefined)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -39,8 +42,36 @@ watch(product, (p) => {
 })
 
 const qty = ref(1)
-const inc = () => qty.value = Math.max(1, qty.value + 1)
+const inc = () => {
+  if (maxStock.value !== null) qty.value = Math.min(maxStock.value, qty.value + 1)
+  else qty.value = Math.max(1, qty.value + 1)
+}
 const dec = () => qty.value = Math.max(1, qty.value - 1)
+
+// inventory helpers
+const variantInventory = computed(() => {
+  if (!product.value) return [] as InventoryVariant[]
+  return product.value.inventory
+})
+
+function stockFor(size?: string, color?: string) {
+  // If the product doesn't track inventory at all, treat as out-of-stock to be safe
+  if (!variantInventory.value || variantInventory.value.length === 0) return 0
+  // When inventory is provided but no exact variant match, treat as out of stock
+  const match = variantInventory.value.find(v => (size ? v.size === size : !v.size) && (color ? v.color === color : !v.color))
+  return match ? match.stock : 0
+}
+
+const currentStock = computed(() => stockFor(selectedSize.value, selectedColor.value))
+const maxStock = computed(() => currentStock.value === null ? null : currentStock.value)
+watch(currentStock, (s) => {
+  if (s !== null && qty.value > s) qty.value = s || 1
+})
+const canAdd = computed(() => {
+  if (!product.value) return false
+  if (currentStock.value === null) return true
+  return currentStock.value > 0
+})
 
 const finalPrice = computed(() => product.value ? (product.value.promotion_price ?? product.value.price) : 0)
 const hasPromo = computed(() => product.value?.promotion_price && (product.value.promotion_price < product.value.price))
@@ -56,10 +87,11 @@ async function addToCart() {
   }
   if (!product.value) return
   try {
-    await apiAddToCart({ product_id: product.value.id, quantity: qty.value, size: selectedSize.value, color: selectedColor.value })
-    alert('Added to cart')
+  await apiAddToCart({ product_id: product.value.id, quantity: qty.value, size: selectedSize.value, color: selectedColor.value })
+  await cart.refresh()
+    showMessage('Added to cart', 'success')
   } catch (e: any) {
-    alert(e?.message || 'Failed to add to cart')
+    showMessage(e?.message || 'Failed to add to cart', 'error')
   }
 }
 
@@ -71,9 +103,9 @@ async function fav() {
   if (!product.value) return
   try {
     await addFavorite(product.value.id)
-    alert('Added to favorites')
+    showMessage('Added to favorites', 'success')
   } catch (e: any) {
-    alert(e?.message || 'Failed to favorite')
+    showMessage(e?.message || 'Failed to favorite', 'error')
   }
 }
 </script>
@@ -113,10 +145,11 @@ async function fav() {
             v-for="s in product.sizes"
             :key="s"
             @click="selectedSize = s"
-            class="min-w-[3rem] rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            class="min-w-[3rem] rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="stockFor(s, selectedColor) === 0"
             :class="selectedSize === s ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400'"
           >
-            {{ s }}
+            {{ s }}<span v-if="stockFor(s, selectedColor) === 0" class="ml-1 text-xs">(OOS)</span>
           </button>
         </div>
       </div>
@@ -128,10 +161,11 @@ async function fav() {
             v-for="c in product.colors"
             :key="c"
             @click="selectedColor = c"
-            class="rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            class="rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="stockFor(selectedSize, c) === 0"
             :class="selectedColor === c ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400'"
           >
-            {{ c }}
+            {{ c }}<span v-if="stockFor(selectedSize, c) === 0" class="ml-1 text-xs">(OOS)</span>
           </button>
         </div>
       </div>
@@ -139,14 +173,15 @@ async function fav() {
       <div class="flex items-center gap-3">
         <label class="text-sm text-zinc-600" for="qty">Quantity</label>
         <div class="inline-flex items-center rounded-lg border border-zinc-300">
-          <button @click="dec" class="h-9 w-9 select-none text-lg leading-none hover:bg-zinc-50">−</button>
-          <input id="qty" v-model.number="qty" type="number" min="1" class="w-14 border-x border-zinc-300 text-center outline-none [appearance:textfield] [-moz-appearance:textfield]" />
-          <button @click="inc" class="h-9 w-9 select-none text-lg leading-none hover:bg-zinc-50">+</button>
+          <button @click="dec" class="h-9 w-9 select-none text-lg leading-none hover:bg-zinc-50" :disabled="qty <= 1">−</button>
+          <input id="qty" v-model.number="qty" type="number" min="1" :max="maxStock ?? undefined" class="w-14 border-x border-zinc-300 text-center outline-none [appearance:textfield] [-moz-appearance:textfield]" />
+          <button @click="inc" class="h-9 w-9 select-none text-lg leading-none hover:bg-zinc-50" :disabled="maxStock !== null && qty >= maxStock">+</button>
         </div>
+        <span v-if="currentStock !== null" class="text-xs text-zinc-500">Stock: {{ currentStock }}</span>
       </div>
 
       <div class="flex gap-3">
-        <button @click="addToCart" class="w-full sm:w-auto sm:min-w-[220px] rounded-lg bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800">Add to Cart</button>
+        <button @click="addToCart" :disabled="!canAdd" class="w-full sm:w-auto sm:min-w-[220px] rounded-lg bg-zinc-900 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed">Add to Cart</button>
         <button
           type="button"
           @click="fav"

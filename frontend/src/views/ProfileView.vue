@@ -31,19 +31,41 @@
           <span v-if="savedAt" class="text-sm text-green-600">Saved at {{ savedAt }}</span>
         </div>
       </form>
+
+      <div class="bg-white p-8 rounded-2xl shadow border border-neutral-200">
+        <h2 class="text-lg font-semibold mb-4">Order History</h2>
+        <div v-if="ordersLoading" class="text-sm text-zinc-500">Loading orders...</div>
+        <div v-else-if="ordersError" class="text-sm text-red-600">{{ ordersError }}</div>
+        <div v-else-if="orders.length === 0" class="text-sm text-zinc-500">No orders yet.</div>
+        <div v-else class="divide-y divide-neutral-200">
+          <div v-for="o in orders" :key="o.id" class="py-3 flex items-center justify-between">
+            <div>
+              <div class="text-sm font-medium">Order #{{ o.id }}</div>
+              <div class="text-xs text-neutral-500">{{ new Date(o.created_at).toLocaleString() }} • {{ o.status }}</div>
+            </div>
+            <div class="text-sm font-semibold">${{ (o.total_price ?? 0).toFixed(2) }}</div>
+          </div>
+        </div>
+      </div>
     </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watchEffect } from 'vue'
+import { reactive, ref, watchEffect, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { listOrders } from '@/services/userResources'
 
 const auth = useAuthStore()
 const form = reactive({ name: '', address: '', phone: '' })
 const saving = ref(false)
 const savedAt = ref<string | null>(null)
+
+type Order = { id: number; created_at: string; status: string; total_price?: number }
+const orders = ref<Order[]>([])
+const ordersLoading = ref(false)
+const ordersError = ref<string | null>(null)
 
 watchEffect(() => {
   if (auth.user) {
@@ -64,4 +86,22 @@ async function onSave() {
     saving.value = false
   }
 }
+
+async function loadOrders() {
+  try {
+    ordersLoading.value = true
+    const res = await listOrders()
+    orders.value = res?.items || []
+    ordersError.value = null
+  } catch (e: any) {
+    ordersError.value = e?.message || 'Failed to load orders'
+  } finally {
+    ordersLoading.value = false
+  }
+}
+
+onMounted(() => {
+  if (auth.token) loadOrders()
+})
+watch(() => auth.token, (t) => { if (t) loadOrders(); else orders.value = [] })
 </script>
