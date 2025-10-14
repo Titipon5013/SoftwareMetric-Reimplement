@@ -1,0 +1,20 @@
+{
+  "name": "backend-bun",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^16.4.5",
+    "fast-jwt": "^6.0.2",
+    "hono": "^4.6.14",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "bun-types": "^1.3.0"
+  }
+}
