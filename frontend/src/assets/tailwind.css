@@ -1,0 +1,5 @@
+/* Tailwind v4 entry */
+@import "tailwindcss";
+
+/* Keep existing base variables and resets */
+@import './base.css';
