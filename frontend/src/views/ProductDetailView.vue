@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { fetchProductById, type Product, type InventoryVariant } from '@/services/products'
 import { addToCart as apiAddToCart, addFavorite } from '@/services/userResources'
+import { useFavoritesStore } from '@/stores/favorites'
 import { showMessage } from '@/composables/useToaster'
 import { useCartStore } from '@/stores/cart'
 import { useAuthStore } from '@/stores/auth'
@@ -14,6 +15,7 @@ const id = Number(route.params.id)
 const auth = useAuthStore()
 const cart = useCartStore()
 const product = ref<Product | undefined>(undefined)
+const favorites = useFavoritesStore()
 const loading = ref(true)
 const error = ref<string | null>(null)
 
@@ -103,6 +105,7 @@ async function fav() {
   if (!product.value) return
   try {
     await addFavorite(product.value.id)
+    await favorites.refresh()
     showMessage('Added to favorites', 'success')
   } catch (e: any) {
     showMessage(e?.message || 'Failed to favorite', 'error')
