@@ -40,6 +40,11 @@ const password = ref('')
 async function onSubmit() {
   try {
     await auth.login(identifier.value.trim(), password.value)
+    // If admin role, go to admin dashboard; else use existing redirect param or home
+    if (auth.role === 'admin') {
+      router.replace('/admin')
+      return
+    }
     const redirect = (route.query.redirect as string) || '/'
     router.replace(redirect)
   } catch {

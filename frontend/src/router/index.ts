@@ -68,7 +68,24 @@ const router = createRouter({
     {
       path: '/admin',
       name: 'admin',
-      component: () => import('../views/AdminEntry.vue'),
+      component: () => import('../views/admin/AdminLayout.vue'),
+      meta: { requiresAdmin: true },
+      children: [
+        { path: '', name: 'admin-dashboard', component: () => import('../views/admin/AdminDashboard.vue') },
+        { path: 'orders', name: 'admin-orders', component: () => import('../views/admin/AdminOrders.vue') },
+        { path: 'categories', name: 'admin-categories', component: () => import('../views/admin/AdminCategories.vue') },
+        { path: 'shipments', name: 'admin-shipments', component: () => import('../views/admin/AdminShipments.vue') },
+        { path: 'products', name: 'admin-products', component: () => import('../views/admin/AdminProducts.vue') },
+        { path: 'products/:id', name: 'admin-product-edit', component: () => import('../views/admin/AdminProductEdit.vue') },
+        { path: 'inventory', name: 'admin-inventory', component: () => import('../views/admin/AdminInventory.vue') },
+        { path: 'customers', name: 'admin-customers', component: () => import('../views/admin/AdminCustomers.vue') },
+      ]
+    },
+    {
+      path: '/admin/login',
+      name: 'admin-login',
+      component: () => import('../views/admin/AdminLogin.vue'),
+      meta: { guestOnly: true, adminArea: true },
     },
   ],
 })
@@ -78,7 +95,14 @@ router.beforeEach((to) => {
   if (to.meta?.requiresAuth && !auth.token) {
     return { name: 'login', query: { redirect: to.fullPath } }
   }
+  if (to.meta?.requiresAdmin) {
+    if (!auth.token || auth.role !== 'admin') {
+      return { name: 'admin-login', query: { redirect: to.fullPath } }
+    }
+  }
   if (to.meta?.guestOnly && auth.token) {
+    // If visiting admin login while already admin, go dashboard
+    if (to.meta?.adminArea && auth.role === 'admin') return { name: 'admin-dashboard' }
     return { name: 'home' }
   }
 })

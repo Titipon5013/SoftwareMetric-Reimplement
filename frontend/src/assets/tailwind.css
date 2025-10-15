@@ -3,3 +3,11 @@
 
 /* Keep existing base variables and resets */
 @import './base.css';
+
+/* Fix for centering issue by resetting the root display property */
+@layer base {
+  body,
+  #app {
+    @apply block;
+  }
+}

@@ -1,15 +1,17 @@
 import { defineStore } from 'pinia'
 import { reactive, ref } from 'vue'
-import { signup as apiSignup, login as apiLogin, getMe, updateProfile, type AuthUser, persistToken, readToken, clearToken } from '@/services/auth'
+import { signup as apiSignup, login as apiLogin, getMe, updateProfile, type AuthUser, persistToken, readToken, clearToken, type AuthResponse } from '@/services/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
   const token = ref<string | null>(readToken())
+  const role = ref<'user' | 'admin' | null>(readRole())
   const loading = ref(false)
   const error = ref<string | null>(null)
 
   async function hydrate() {
     if (!token.value) return
+    if (role.value === 'admin') return // admin tokens don't work with /auth/me
     try {
       loading.value = true
       user.value = await getMe(token.value)
@@ -24,10 +26,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     loading.value = true
     try {
-      const res = await apiSignup(name, email, password)
+  const res = await apiSignup(name, email, password)
       token.value = res.token
       persistToken(res.token)
       user.value = res.user
+  role.value = res.role ?? 'user'
+  persistRole(role.value)
     } catch (e: any) {
       error.value = e?.message || 'Signup failed'
       throw e
@@ -40,10 +44,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
     loading.value = true
     try {
-      const res = await apiLogin(identifier, password)
+  const res: AuthResponse = await apiLogin(identifier, password)
       token.value = res.token
       persistToken(res.token)
       user.value = res.user
+  role.value = res.role ?? 'user'
+  persistRole(role.value)
     } catch (e: any) {
       error.value = e?.message || 'Login failed'
       throw e
@@ -56,6 +62,8 @@ export const useAuthStore = defineStore('auth', () => {
     clearToken()
     token.value = null
     user.value = null
+    role.value = null
+    clearRole()
   }
 
   async function refreshProfile() {
@@ -72,5 +80,16 @@ export const useAuthStore = defineStore('auth', () => {
   // initial hydration
   hydrate()
 
-  return { user, token, loading, error, signup, login, logout, refreshProfile, saveProfile }
+  return { user, token, role, loading, error, signup, login, logout, refreshProfile, saveProfile }
 })
+
+function persistRole(r: 'user' | 'admin') {
+  localStorage.setItem('auth_role', r)
+}
+function readRole(): 'user' | 'admin' | null {
+  const r = localStorage.getItem('auth_role')
+  return r === 'user' || r === 'admin' ? r : null
+}
+function clearRole() {
+  localStorage.removeItem('auth_role')
+}

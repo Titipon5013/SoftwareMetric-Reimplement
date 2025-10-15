@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted, watch } from 'vue'
-import { RouterLink, RouterView, useRouter } from 'vue-router'
+import { computed, onMounted, watch } from 'vue'
+import { RouterLink, RouterView, useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import { useFavoritesStore } from '@/stores/favorites'
@@ -10,6 +10,9 @@ const auth = useAuthStore()
 const cart = useCartStore()
 const router = useRouter()
 const favorites = useFavoritesStore()
+const route = useRoute()
+
+const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 
 function handleLogout() {
   auth.logout()
@@ -17,17 +20,17 @@ function handleLogout() {
 }
 
 onMounted(() => {
-  if (auth.token) { cart.refresh(); favorites.refresh() }
+  if (auth.token && auth.role !== 'admin') { cart.refresh(); favorites.refresh() }
 })
-watch(() => auth.token, (t) => {
-  if (t) { cart.refresh(); favorites.refresh() } else { cart.$reset(); favorites.$reset() }
+watch(() => [auth.token, auth.role], ([t, r]) => {
+  if (t && r !== 'admin') { cart.refresh(); favorites.refresh() } else { cart.$reset(); favorites.$reset() }
 })
 </script>
 
 <template>
   <div class="min-h-screen w-full bg-white text-slate-800">
-    <!-- Navbar -->
-    <header class="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/90 backdrop-blur">
+  <!-- Navbar -->
+  <header v-if="!isAdminRoute" class="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/90 backdrop-blur">
       <div class="w-full px-4 sm:px-6 lg:px-8">
         <div class="flex h-16 items-center justify-between">
           <!-- Brand -->

@@ -12,6 +12,7 @@ export interface AuthUser {
 export interface AuthResponse {
   token: string
   user: AuthUser
+  role?: 'user' | 'admin'
 }
 
 function authHeaders(token?: string): Record<string, string> {

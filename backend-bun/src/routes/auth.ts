@@ -12,15 +12,21 @@ type UserSafe = {
   created_at?: string
 }
 
-function getSecret() {
-  const s = Bun.env.USER_JWT_SECRET || Bun.env.ADMIN_JWT_SECRET
+function getUserSecret() {
+  const s = Bun.env.USER_JWT_SECRET
   if (!s) throw new Error('USER_JWT_SECRET missing')
+  return s
+}
+function getAdminSecret() {
+  const s = Bun.env.ADMIN_JWT_SECRET
+  if (!s) throw new Error('ADMIN_JWT_SECRET missing')
   return s
 }
 
 // fast-jwt expects key callback returning string or Buffer. Use the raw secret string.
-const sign = createSigner({ key: async () => getSecret(), expiresIn: '24h' })
-const verify = createVerifier({ key: async () => getSecret() })
+const userSign = createSigner({ key: async () => getUserSecret(), expiresIn: '24h' })
+const adminSign = createSigner({ key: async () => getAdminSecret(), expiresIn: '12h' })
+const verifyUser = createVerifier({ key: async () => getUserSecret() })
 
 const app = new Hono<{ Variables: { user?: UserSafe } }>()
 
@@ -53,8 +59,8 @@ app.post('/signup', async (c) => {
       .select('*')
       .single()
     if (error || !data) return c.json({ error: error?.message || 'Signup failed' }, 400)
-    const token = await sign({ sub: String(data.id), email: data.email, name: data.name })
-    return c.json({ token, user: toSafe(data) }, 201)
+  const token = await userSign({ sub: String(data.id), email: data.email, name: data.name, role: 'user' })
+  return c.json({ token, user: toSafe(data), role: 'user' }, 201)
   } catch (e: any) {
     console.error('signup error', e)
     return c.json({ error: 'Internal server error' }, 500)
@@ -74,14 +80,49 @@ app.post('/login', async (c) => {
     if (!identifier || !password) return c.json({ error: 'identifier and password required' }, 400)
     const ident = String(identifier).trim()
     const isEmail = ident.includes('@')
+    // 1) Try normal users table
     let q = sbAdmin.from('users').select('*')
     q = isEmail ? q.eq('email', ident.toLowerCase()) : q.eq('name', ident)
-    const { data: user, error } = await q.single()
-    if (error || !user) return c.json({ error: 'Invalid credentials' }, 401)
-    const ok = await bcrypt.compare(password, user.password)
-    if (!ok) return c.json({ error: 'Invalid credentials' }, 401)
-    const token = await sign({ sub: String(user.id), email: user.email, name: user.name })
-    return c.json({ token, user: toSafe(user) })
+    const { data: user, error } = await q.maybeSingle()
+    if (user && !error) {
+      let ok = false
+      try {
+        ok = await bcrypt.compare(password, (user as any).password)
+      } catch {
+        ok = false
+      }
+      if (!ok && (Bun.env.ALLOW_PLAINTEXT_USER_PASSWORD === 'true')) {
+        ok = password === String((user as any).password)
+      }
+      if (!ok) return c.json({ error: 'Invalid credentials' }, 401)
+      const token = await userSign({ sub: String(user.id), email: user.email, name: user.name, role: 'user' })
+      return c.json({ token, user: toSafe(user), role: 'user' })
+    }
+
+    // 2) Fallback to admin_users by username
+    const { data: adminUser, error: adminErr } = await sbAdmin
+      .from('admin_users')
+      .select('id, username, password')
+      .eq('username', ident)
+      .maybeSingle()
+    if (adminUser && !adminErr) {
+      let ok = false
+      try {
+        ok = await bcrypt.compare(password, (adminUser as any).password)
+      } catch {
+        ok = false
+      }
+      if (!ok && (Bun.env.ALLOW_PLAINTEXT_ADMIN_PASSWORD === 'true')) {
+        ok = password === String((adminUser as any).password)
+      }
+      if (!ok) return c.json({ error: 'Invalid credentials' }, 401)
+      const token = await adminSign({ sub: String(adminUser.id), username: (adminUser as any).username, role: 'admin' })
+      // Return a user-like shape for compatibility, plus role
+      const pseudoUser: UserSafe = { id: Number(adminUser.id), name: (adminUser as any).username, email: '', address: null, phone: null }
+      return c.json({ token, user: pseudoUser, role: 'admin' })
+    }
+
+    return c.json({ error: 'Invalid credentials' }, 401)
   } catch (e: any) {
     console.error('login error', e)
     return c.json({ error: 'Internal server error' }, 500)
@@ -93,7 +134,7 @@ app.use('/me/*', async (c, next) => {
   const auth = c.req.header('authorization') || ''
   if (!auth.toLowerCase().startsWith('bearer ')) return c.json({ error: 'Unauthorized' }, 401)
   try {
-    const payload: any = await verify(auth.slice(7))
+    const payload: any = await verifyUser(auth.slice(7))
     const userId = Number(payload.sub)
     const { data: user, error } = await sbAdmin.from('users').select('*').eq('id', userId).single()
     if (error || !user) return c.json({ error: 'Unauthorized' }, 401)
