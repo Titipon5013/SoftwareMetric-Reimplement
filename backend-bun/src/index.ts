@@ -18,6 +18,8 @@ const allowed = (Bun.env.ALLOWED_ORIGINS || '*')
 app.use('*', cors({
   origin: (origin?: string) => (allowed.includes('*') ? '*' : (origin && allowed.includes(origin) ? origin : allowed[0] || '')),
   credentials: true,
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
 }))
 
 // Root - helpful hint instead of 404

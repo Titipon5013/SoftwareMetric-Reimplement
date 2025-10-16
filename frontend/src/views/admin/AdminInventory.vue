@@ -47,7 +47,16 @@ onMounted(load)
   <section>
     <header class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-semibold">Inventory Management</h1>
-      <RouterLink to="/admin" class="text-sm text-slate-600 underline">Back to Dashboard</RouterLink>
+      <RouterLink
+        to="/admin"
+        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition"
+        aria-label="Back to Dashboard"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-4 w-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        <span>Back to Dashboard</span>
+      </RouterLink>
     </header>
 
     <div class="mb-4 flex items-center gap-2">
@@ -70,7 +79,7 @@ onMounted(load)
           <th class="p-2 border">Color</th>
           <th class="p-2 border">Size</th>
           <th class="p-2 border">Stock</th>
-          <th class="p-2 border">Last Updated</th>
+          <th class="p-2 border">Updated At</th>
           <th class="p-2 border">Actions</th>
         </tr>
       </thead>
@@ -80,7 +89,7 @@ onMounted(load)
           <td class="p-2 border"><input v-model="it.color" class="border rounded px-2 py-1 w-full" /></td>
           <td class="p-2 border"><input v-model="it.size" class="border rounded px-2 py-1 w-full" /></td>
           <td class="p-2 border"><input v-model.number="it.stock" type="number" class="border rounded px-2 py-1 w-full" /></td>
-          <td class="p-2 border">{{ it.last_updated }}</td>
+          <td class="p-2 border">{{ it.updated_at || it.last_updated }}</td>
           <td class="p-2 border">
             <button @click="saveItem(it)" class="mr-2 rounded bg-slate-800 text-white px-3 py-1 text-xs">Save</button>
             <button @click="removeItem(it)" class="rounded bg-red-600 text-white px-3 py-1 text-xs">Delete</button>

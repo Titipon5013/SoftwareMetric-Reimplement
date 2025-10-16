@@ -37,7 +37,16 @@ onMounted(load)
   <section>
     <header class="mb-6 flex items-center justify-between">
       <h1 class="text-2xl font-semibold">Order Management</h1>
-      <RouterLink to="/admin" class="text-sm text-slate-600 underline">Back to Dashboard</RouterLink>
+      <RouterLink
+        to="/admin"
+        class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 hover:border-slate-400 transition"
+        aria-label="Back to Dashboard"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-4 w-4">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+        </svg>
+        <span>Back to Dashboard</span>
+      </RouterLink>
     </header>
     <div v-if="loading">Loading...</div>
     <div v-else>

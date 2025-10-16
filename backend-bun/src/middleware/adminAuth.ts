@@ -10,7 +10,7 @@ export async function adminAuth(c: Context, next: Next) {
   if (!secret()) return c.json({ error: 'Server misconfigured: missing ADMIN_JWT_SECRET' }, 500)
 
   try {
-    const verify = createVerifier({ key: async () => new TextEncoder().encode(secret()) })
+    const verify = createVerifier({ key: async () => secret() })
     const payload = await verify(token)
     // minimal check
     if (!payload || payload.role !== 'admin') return c.json({ error: 'Forbidden' }, 403)

@@ -101,8 +101,12 @@ router.beforeEach((to) => {
     }
   }
   if (to.meta?.guestOnly && auth.token) {
-    // If visiting admin login while already admin, go dashboard
-    if (to.meta?.adminArea && auth.role === 'admin') return { name: 'admin-dashboard' }
+    // Admin login is special: allow navigating here to switch from user -> admin
+    if (to.meta?.adminArea) {
+      if (auth.role === 'admin') return { name: 'admin-dashboard' }
+      // allow showing admin login even if user token exists
+      return
+    }
     return { name: 'home' }
   }
 })

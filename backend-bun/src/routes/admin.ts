@@ -82,13 +82,13 @@ app.get('/products', async (c) => {
   const offset = Number(c.req.query('offset') ?? 0)
   const search = c.req.query('search')?.trim()
 
-  let q = sbAdmin.from('products').select('*')
+  let q = sbAdmin.from('products').select('*', { count: 'exact' })
   if (search && search.length > 0) {
     q = q.ilike('name', `%${search}%`)
   }
-  const { data, error } = await q.order('id', { ascending: false }).range(offset, offset + limit - 1)
+  const { data, error, count } = await (q as any).order('id', { ascending: false }).range(offset, offset + limit - 1)
   if (error) return c.json({ error: error.message }, 500)
-  return c.json({ items: data })
+  return c.json({ items: data, total: count ?? 0, limit, offset })
 })
 
 app.get('/products/:id', async (c) => {
@@ -170,7 +170,8 @@ app.delete('/products/:id', async (c) => {
 // Inventory endpoints
 app.get('/inventory', async (c) => {
   const productId = c.req.query('product_id')
-  let q = sbAdmin.from('inventory').select('*').order('last_updated', { ascending: false })
+  // Order primarily by updated_at if present, else last_updated for backward compatibility
+  let q = sbAdmin.from('inventory').select('*').order('updated_at', { ascending: false, nullsFirst: false }).order('last_updated', { ascending: false })
   if (productId) {
     q = q.eq('product_id', Number(productId))
   }
@@ -366,9 +367,185 @@ app.delete('/orders/:id', async (c) => {
 // Convenience: update order status like old /admin/orders/update-status
 app.post('/orders/update-status', async (c) => {
   const { id, status } = await c.req.json()
-  const { error } = await sbAdmin.from('orders').update({ status }).eq('id', Number(id))
-  if (error) return c.json({ error: error.message }, 400)
+  const orderId = Number(id)
+  const DEBUG = (Bun.env.DEBUG_ORDER_STOCK ?? 'true') !== 'false'
+  const dbg = (...args: any[]) => { if (DEBUG) console.log('[admin:orders:update-status]', ...args) }
+
+  dbg('request', { orderId, status })
+  // Load previous status to ensure we only process side effects once
+  const { data: prevOrder } = await sbAdmin
+    .from('orders')
+    .select('status')
+    .eq('id', orderId)
+    .single()
+  dbg('prevStatus', prevOrder?.status)
+
+  const { error } = await sbAdmin.from('orders').update({ status }).eq('id', orderId)
+  if (error) {
+    dbg('update order status failed', error.message)
+    return c.json({ error: error.message }, 400)
+  }
+
+  if (status === 'success' && prevOrder && prevOrder.status !== 'success') {
+    dbg('processing success side-effects for order', orderId)
+    // Ensure there's at least one shipment; create as pending with a tracking placeholder
+    const { data: existingShip } = await sbAdmin
+      .from('shipments')
+      .select('id')
+      .eq('order_id', orderId)
+      .maybeSingle()
+
+    if (!existingShip) {
+      const tracking = `TRK-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`
+      const { error: shipErr } = await sbAdmin.from('shipments').insert({ order_id: orderId, tracking_number: tracking, status: 'pending' })
+      if (shipErr) dbg('create shipment error', shipErr.message)
+      else dbg('shipment created', { orderId, tracking })
+    }
+
+    // Decrement inventory per order item
+    const { data: items, error: itemsLoadErr } = await sbAdmin
+      .from('order_items')
+      .select('product_id, quantity, size, color')
+      .eq('order_id', orderId)
+    if (itemsLoadErr) dbg('load order_items error', itemsLoadErr.message)
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        const qty = Math.max(1, Number(it.quantity || 1))
+        dbg('item', { product_id: it.product_id, color: it.color, size: it.size, qty })
+        // Try exact variant match first, handling null color/size
+        let q = sbAdmin
+          .from('inventory')
+          .select('id, stock')
+          .eq('product_id', it.product_id) as any
+        if (it.color == null || String(it.color).trim() === '') q = q.is('color', null)
+        else q = q.ilike('color', String(it.color).trim())
+        if (it.size == null || String(it.size).trim() === '') q = q.is('size', null)
+        else q = q.ilike('size', String(it.size).trim())
+        const { data: invExact, error: invExactErr } = await q.maybeSingle()
+        if (invExactErr) dbg('invExact query error', invExactErr.message)
+        if (invExact) {
+          const newStock = Math.max(0, Number(invExact.stock || 0) - qty)
+          const { error: upErr } = await sbAdmin
+            .from('inventory')
+            .update({ stock: newStock, last_updated: new Date().toISOString() })
+            .eq('id', invExact.id)
+          if (upErr) dbg('invExact update error', upErr.message)
+          else dbg('invExact updated', { id: invExact.id, from: invExact.stock, to: newStock })
+          continue
+        }
+        // Fallback: decrement any inventory row for this product if variant not found
+        const { data: invAny, error: invAnyErr } = await sbAdmin
+          .from('inventory')
+          .select('id, stock')
+          .eq('product_id', it.product_id)
+          .order('stock', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (invAnyErr) dbg('invAny query error', invAnyErr.message)
+        if (invAny) {
+          const newStock = Math.max(0, Number(invAny.stock || 0) - qty)
+          const { error: upAnyErr } = await sbAdmin
+            .from('inventory')
+            .update({ stock: newStock, last_updated: new Date().toISOString() })
+            .eq('id', invAny.id)
+          if (upAnyErr) dbg('invAny update error', upAnyErr.message)
+          else dbg('invAny updated', { id: invAny.id, from: invAny.stock, to: newStock })
+        } else {
+          dbg('no inventory row found for product', it.product_id)
+        }
+      }
+    }
+  }
+
   return c.json({ ok: true })
 })
 
 export default app
+
+// Metrics endpoint: total orders, best sellers, top spenders
+app.get('/metrics', async (c) => {
+  try {
+    // 1) Total orders
+    const { count: totalOrders, error: countErr } = await sbAdmin
+      .from('orders')
+      .select('*', { count: 'exact', head: true })
+    if (countErr) return c.json({ error: countErr.message }, 400)
+
+    // 2) Best sellers (top 5 by quantity)
+    const { data: orderItems, error: itemsErr } = await sbAdmin
+      .from('order_items')
+      .select('product_id, quantity, price')
+    if (itemsErr) return c.json({ error: itemsErr.message }, 400)
+
+    const byProduct: Record<number, { qty: number; revenue: number }> = {}
+    for (const it of orderItems || []) {
+      const pid = Number((it as any).product_id)
+      const qty = Number((it as any).quantity || 0)
+      const price = Number((it as any).price || 0)
+      if (!byProduct[pid]) byProduct[pid] = { qty: 0, revenue: 0 }
+      byProduct[pid].qty += qty
+      byProduct[pid].revenue += qty * price
+    }
+    const topProdEntries = Object.entries(byProduct)
+      .map(([pid, v]) => ({ product_id: Number(pid), ...v }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5)
+    let bestSellers: any[] = []
+    if (topProdEntries.length) {
+      const pids = topProdEntries.map(p => p.product_id)
+      const { data: prods } = await sbAdmin
+        .from('products')
+        .select('id, name, image')
+        .in('id', pids)
+      const map: Record<number, any> = {}
+      for (const p of prods || []) map[(p as any).id] = p
+      bestSellers = topProdEntries.map(e => ({
+        product: map[e.product_id] || { id: e.product_id },
+        total_qty: e.qty,
+        total_revenue: +e.revenue.toFixed(2),
+      }))
+    }
+
+    // 3) Top spenders (top 5 by total_spent)
+    const { data: ordersLite, error: ordersErr } = await sbAdmin
+      .from('orders')
+      .select('user_id, total_price')
+    if (ordersErr) return c.json({ error: ordersErr.message }, 400)
+
+    const byUser: Record<number, { spent: number; count: number }> = {}
+    for (const o of ordersLite || []) {
+      const uid = Number((o as any).user_id)
+      const total = Number((o as any).total_price || 0)
+      if (!byUser[uid]) byUser[uid] = { spent: 0, count: 0 }
+      byUser[uid].spent += total
+      byUser[uid].count += 1
+    }
+    const topUserEntries = Object.entries(byUser)
+      .map(([uid, v]) => ({ user_id: Number(uid), ...v }))
+      .sort((a, b) => b.spent - a.spent)
+      .slice(0, 5)
+    let topSpenders: any[] = []
+    if (topUserEntries.length) {
+      const uids = topUserEntries.map(u => u.user_id)
+      const { data: users } = await sbAdmin
+        .from('users')
+        .select('id, name, email')
+        .in('id', uids)
+      const umap: Record<number, any> = {}
+      for (const u of users || []) umap[(u as any).id] = u
+      topSpenders = topUserEntries.map(e => ({
+        user: umap[e.user_id] || { id: e.user_id },
+        total_spent: +e.spent.toFixed(2),
+        orders_count: e.count,
+      }))
+    }
+
+    return c.json({
+      total_orders: totalOrders ?? 0,
+      best_sellers: bestSellers,
+      top_spenders: topSpenders,
+    })
+  } catch (e: any) {
+    return c.json({ error: 'Failed to compute metrics' }, 500)
+  }
+})

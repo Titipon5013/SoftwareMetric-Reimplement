@@ -73,3 +73,6 @@ export const adminListCustomers = (params: { limit?: number; offset?: number; se
 export const adminAddCustomer = (payload: { name: string; email: string; password: string; address: string; phone: string }, token?: string) => adminFetch('/admin/customers', { method: 'POST', body: JSON.stringify(payload) }, token)
 export const adminEditCustomer = (id: number, patch: { name?: string; email?: string; password?: string; address?: string; phone?: string }, token?: string) => adminFetch(`/admin/customers/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }, token)
 export const adminDeleteCustomer = (id: number, token?: string) => adminFetch(`/admin/customers/${id}`, { method: 'DELETE' }, token)
+
+// Metrics
+export const adminGetMetrics = (token?: string) => adminFetch('/admin/metrics', {}, token)
