@@ -78,10 +78,11 @@ export function normalizeProduct(p: RawProduct): Product {
 // Default to local backend if env not provided (helps avoid calling the frontend origin by mistake)
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8787'
 
-export async function fetchProducts(params: { limit?: number; offset?: number } = {}): Promise<{ items: Product[]; total?: number; limit?: number; offset?: number }> {
+export async function fetchProducts(params: { limit?: number; offset?: number; category?: string } = {}): Promise<{ items: Product[]; total?: number; limit?: number; offset?: number }> {
   const q = new URLSearchParams()
   if (params.limit) q.set('limit', String(params.limit))
   if (params.offset) q.set('offset', String(params.offset))
+  if (params.category && params.category !== 'ALL') q.set('category', params.category)
   const url = q.toString() ? `${API_BASE}/products?${q.toString()}` : `${API_BASE}/products`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`Failed to fetch products: ${res.status}`)
@@ -103,4 +104,14 @@ export async function fetchProductById(id: number): Promise<Product | null> {
   if (!res.ok) throw new Error(`Failed to fetch product: ${res.status}`)
   const data: RawProduct = await res.json()
   return normalizeProduct(data)
+}
+
+export type Category = { id: number; category_name: string }
+
+export async function fetchCategories(): Promise<Category[]> {
+  const res = await fetch(`${API_BASE}/categories`)
+  if (!res.ok) throw new Error(`Failed to fetch categories: ${res.status}`)
+  const data = await res.json()
+  const items: Category[] = data?.items ?? []
+  return items
 }

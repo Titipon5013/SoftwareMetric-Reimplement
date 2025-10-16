@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ProductCard from '@/components/ProductCard.vue'
-import { fetchProducts, type Product } from '@/services/products'
+import { fetchProducts, fetchCategories, type Product, type Category } from '@/services/products'
 
 type SortKey = 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'
 
 const route = useRoute()
+const router = useRouter()
 const query = ref<string>('')
 const category = ref<string>('ALL')
+const categoriesApi = ref<Category[]>([])
 const sort = ref<SortKey>('name-asc')
 
 const items = ref<Product[]>([])
@@ -60,7 +62,7 @@ function nextPage() {
 async function load() {
   try {
     loading.value = true
-    const res = await fetchProducts({ limit: limit.value, offset: offset.value })
+    const res = await fetchProducts({ limit: limit.value, offset: offset.value, category: category.value })
     items.value = res.items
     total.value = res.total
   } catch (e: any) {
@@ -70,20 +72,56 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  try {
+    const list = await fetchCategories()
+    categoriesApi.value = list
+  } catch {
+    categoriesApi.value = []
+  }
+  // If the route already has a category, let the category watcher trigger the load
+  if (typeof route.query.category !== 'string' || !route.query.category) {
+    await load()
+  }
+})
 
 // hydrate search from route `q` param
 watch(() => route.query.q, (q) => {
   if (typeof q === 'string') query.value = q
 }, { immediate: true })
 
-// Reset to first page when category or sort change
-watch([category, sort], () => {
+// Reset to first page when category changes and reload from server
+watch(category, () => {
   offset.value = 0
-  // No server-side filter; keep client filter only
+  // Reflect category in the URL for shareable links
+  const q: Record<string, any> = { ...route.query }
+  if (category.value && category.value !== 'ALL') q.category = category.value
+  else delete q.category
+  router.replace({ path: '/products', query: q })
+  load().then(scrollToTop)
 })
 
+// For sort changes, keep client-side sorting only but reset to first page
+watch(sort, () => {
+  offset.value = 0
+})
+
+// Hydrate category from the route query (e.g., when coming from Home quick links)
+watch(
+  () => route.query.category,
+  (cat) => {
+    if (typeof cat === 'string' && cat) {
+      if (category.value !== cat) category.value = cat
+    } else {
+      if (category.value !== 'ALL') category.value = 'ALL'
+    }
+  },
+  { immediate: true }
+)
+
 const categories = computed(() => {
+  const api = categoriesApi.value.map(c => c.category_name)
+  if (api.length > 0) return ['ALL', ...api]
   const set = new Set<string>()
   items.value.forEach(p => { if (p.category) set.add(p.category) })
   return ['ALL', ...Array.from(set)]
@@ -96,7 +134,10 @@ const filtered = computed(() => {
     list = list.filter(p => p.name.toLowerCase().includes(q) || (p.description?.toLowerCase().includes(q)))
   }
   if (category.value && category.value !== 'ALL') {
-    list = list.filter(p => p.category === category.value)
+    // Only apply client-side category filter if products include a category field
+    if (items.value.some(p => !!p.category)) {
+      list = list.filter(p => p.category === category.value)
+    }
   }
   switch (sort.value) {
     case 'name-asc':
