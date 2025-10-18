@@ -33,17 +33,40 @@
       </form>
 
       <div class="bg-white p-8 rounded-2xl shadow border border-neutral-200">
-        <h2 class="text-lg font-semibold mb-4">Order History</h2>
-        <div v-if="ordersLoading" class="text-sm text-zinc-500">Loading orders...</div>
-        <div v-else-if="ordersError" class="text-sm text-red-600">{{ ordersError }}</div>
-        <div v-else-if="orders.length === 0" class="text-sm text-zinc-500">No orders yet.</div>
-        <div v-else class="divide-y divide-neutral-200">
-          <div v-for="o in orders" :key="o.id" class="py-3 flex items-center justify-between">
-            <div>
-              <div class="text-sm font-medium">Order #{{ o.id }}</div>
-              <div class="text-xs text-neutral-500">{{ new Date(o.created_at).toLocaleString() }} • {{ o.status }}</div>
+        <div class="mb-4 flex items-center gap-3">
+          <button @click="activeTab = 'orders'" :class="tabBtn('orders')">Orders</button>
+          <button @click="activeTab = 'shipments'" :class="tabBtn('shipments')">Shipments</button>
+        </div>
+
+        <div v-if="activeTab === 'orders'">
+          <h2 class="text-lg font-semibold mb-4">Order History</h2>
+          <div v-if="ordersLoading" class="text-sm text-zinc-500">Loading orders...</div>
+          <div v-else-if="ordersError" class="text-sm text-red-600">{{ ordersError }}</div>
+          <div v-else-if="orders.length === 0" class="text-sm text-zinc-500">No orders yet.</div>
+          <div v-else class="divide-y divide-neutral-200">
+            <div v-for="o in orders" :key="o.id" class="py-3 flex items-center justify-between">
+              <div>
+                <div class="text-sm font-medium">Order #{{ o.id }}</div>
+                <div class="text-xs text-neutral-500">{{ new Date(o.created_at).toLocaleString() }} • {{ o.status }}</div>
+              </div>
+              <div class="text-sm font-semibold">${{ (o.total_price ?? 0).toFixed(2) }}</div>
             </div>
-            <div class="text-sm font-semibold">${{ (o.total_price ?? 0).toFixed(2) }}</div>
+          </div>
+        </div>
+
+        <div v-else>
+          <h2 class="text-lg font-semibold mb-4">Shipments</h2>
+          <div v-if="shipLoading" class="text-sm text-zinc-500">Loading shipments...</div>
+          <div v-else-if="shipError" class="text-sm text-red-600">{{ shipError }}</div>
+          <div v-else-if="shipments.length === 0" class="text-sm text-zinc-500">No shipments yet.</div>
+          <div v-else class="divide-y divide-neutral-200">
+            <div v-for="s in shipments" :key="s.id" class="py-3 flex items-center justify-between">
+              <div>
+                <div class="text-sm font-medium">Shipment #{{ s.id }} for Order #{{ s.order_id }}</div>
+                <div class="text-xs text-neutral-500">{{ formatDate(s.updated_at) }} • {{ s.status }}</div>
+                <div v-if="s.tracking_number" class="text-xs text-neutral-600">Tracking: {{ s.tracking_number }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -55,7 +78,7 @@
 <script setup lang="ts">
 import { reactive, ref, watchEffect, onMounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { listOrders } from '@/services/userResources'
+import { listOrders, listShipments } from '@/services/userResources'
 
 const auth = useAuthStore()
 const form = reactive({ name: '', address: '', phone: '' })
@@ -66,6 +89,25 @@ type Order = { id: number; created_at: string; status: string; total_price?: num
 const orders = ref<Order[]>([])
 const ordersLoading = ref(false)
 const ordersError = ref<string | null>(null)
+type Shipment = { id: number; order_id: number; status: string; tracking_number?: string; updated_at?: string }
+const shipments = ref<Shipment[]>([])
+const shipLoading = ref(false)
+const shipError = ref<string | null>(null)
+const activeTab = ref<'orders' | 'shipments'>('orders')
+
+function tabBtn(name: 'orders' | 'shipments') {
+  return [
+    'px-4 py-2 rounded-lg text-sm font-medium border transition',
+    activeTab.value === name ? 'bg-black text-white border-black' : 'bg-white text-zinc-700 border-zinc-300 hover:bg-zinc-50'
+  ].join(' ')
+}
+
+function formatDate(v?: string) {
+  if (!v) return ''
+  const d = new Date(v)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString()
+}
 
 watchEffect(() => {
   if (auth.user) {
@@ -100,8 +142,24 @@ async function loadOrders() {
   }
 }
 
+async function loadShipments() {
+  try {
+    shipLoading.value = true
+    const res = await listShipments()
+    shipments.value = res?.items || []
+    shipError.value = null
+  } catch (e: any) {
+    shipError.value = e?.message || 'Failed to load shipments'
+  } finally {
+    shipLoading.value = false
+  }
+}
+
 onMounted(() => {
-  if (auth.token) loadOrders()
+  if (auth.token) { loadOrders(); loadShipments() }
 })
-watch(() => auth.token, (t) => { if (t) loadOrders(); else orders.value = [] })
+watch(() => auth.token, (t) => {
+  if (t) { loadOrders(); loadShipments() }
+  else { orders.value = []; shipments.value = [] }
+})
 </script>

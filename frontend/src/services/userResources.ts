@@ -44,3 +44,5 @@ export async function removeFavorite(id: string) { return authFetch(`/favorites/
 // Orders
 export async function listOrders() { return authFetch('/orders') }
 export async function placeOrder(fromCart = true) { return authFetch('/orders', { method: 'POST', body: JSON.stringify({ fromCart }) }) }
+export async function listShipments() { return authFetch('/orders/shipments') }
+export async function getOrderDetail(id: number) { return authFetch(`/orders/${id}`) }

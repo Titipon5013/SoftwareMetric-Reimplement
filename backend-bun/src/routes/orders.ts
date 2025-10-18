@@ -38,6 +38,21 @@ app.get('/', async (c) => {
   return c.json({ items: data })
 })
 
+// GET /orders/shipments - list shipments for the current user's orders
+app.get('/shipments', async (c) => {
+  const userId = c.get('userId')!
+  // Join shipments -> orders to ensure access only to own shipments
+  const { data, error } = await sbAdmin
+    .from('shipments')
+    .select('id, order_id, status, tracking_number, updated_at, orders!inner(user_id)')
+    .eq('orders.user_id', userId)
+    .order('updated_at', { ascending: false })
+  if (error) return c.json({ error: error.message }, 400)
+  // remove joined orders field before returning
+  const items = (data || []).map((s: any) => ({ id: s.id, order_id: s.order_id, status: s.status, tracking_number: s.tracking_number, updated_at: s.updated_at }))
+  return c.json({ items })
+})
+
 // GET /orders/:id - view own order detail + items (enrich items with product name/image)
 app.get('/:id', async (c) => {
   const id = Number(c.req.param('id'))
