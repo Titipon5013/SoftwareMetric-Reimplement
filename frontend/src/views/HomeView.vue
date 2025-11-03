@@ -98,14 +98,14 @@ onMounted(() => {
 
         <!-- Center: Active Product Image -->
         <div class="center-block" data-aos="zoom-in">
-          <RouterLink to="/new">
+          <RouterLink to="/products?category=new">
             <img :src="sliderImages[index]" id="image1" alt="New release" />
           </RouterLink>
         </div>
 
         <!-- Right Side: Next Product Image -->
         <div class="right-block" data-aos="zoom-in" data-aos-delay="150">
-          <RouterLink to="/new">
+          <RouterLink to="/products?category=new">
             <img :src="sliderImages[next]" id="image2" alt="Next release" />
           </RouterLink>
         </div>
